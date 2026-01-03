@@ -1,6 +1,6 @@
 # Athena LED 控制器
 
-[原项目](https://github.com/NONGFAH/athena-led) 的 Rust 实现，用于在 OpenWrt 设备上控制 LED 点阵显示屏。
+[原项目](https://github.com/haipengno1/athena-led) 的分支，用于在 OpenWrt 设备上控制 LED 点阵显示屏，优化了显示的可读性。
 
 [English](README.md) | 简体中文
 

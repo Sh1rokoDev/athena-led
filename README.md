@@ -2,7 +2,7 @@
 
 English | [简体中文](README_zh.md)
 
-A Rust port of [athena-led](https://github.com/NONGFAH/athena-led) for controlling LED matrix displays on OpenWrt devices.
+A fork of [athena-led](https://github.com/haipengno1/athena-led) for controlling LED matrix displays on OpenWrt devices.
 
 ## Features
 
