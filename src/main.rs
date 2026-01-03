@@ -118,23 +118,26 @@ async fn process_options(screen: &mut led_screen::LedScreen, args: &Args, status
         match option {
             "date" => {
                 let time = Local::now().format("%m-%d").to_string();
-                screen.write_data(time.as_bytes(), status)?;
+                let spaced_time = time.chars().map(|c| c.to_string()).collect::<Vec<_>>().join(" ");
+                screen.write_data(spaced_time.as_bytes(), status)?;
                 time::sleep(Duration::from_secs(args.seconds)).await;
             }
             "time" => {
                 let time = Local::now().format("%H:%M").to_string();
-                screen.write_data(time.as_bytes(), status)?;
+                let spaced_time = time.chars().map(|c| c.to_string()).collect::<Vec<_>>().join(" ");
+                screen.write_data(spaced_time.as_bytes(), status)?;
                 time::sleep(Duration::from_secs(args.seconds)).await;
             }
             "timeBlink" => {
                 let start = time::Instant::now();
                 let mut time_flag = false;
                 while start.elapsed() < Duration::from_secs(args.seconds) {
-                    let mut time = Local::now().format("%H:%M").to_string();
+                    let time = Local::now().format("%H:%M").to_string();
+                    let mut spaced_time = time.chars().map(|c| c.to_string()).collect::<Vec<_>>().join(" ");
                     if time_flag {
-                        time = time.replace(':', "  ");
+                        spaced_time = spaced_time.replace(':', " ");
                     }
-                    screen.write_data(time.as_bytes(), status)?;
+                    screen.write_data(spaced_time.as_bytes(), status)?;
                     time_flag = !time_flag;
                     time::sleep(Duration::from_secs(1)).await;
                 }
@@ -167,6 +170,10 @@ fn get_temp(temp_flags: &str) -> Result<Option<String>> {
     let mut result = String::new();
     
     for i in 0..=6 {
+        if i != 0 {
+            result.push_str(" ");
+        }
+
         if !temp_flags.contains(&i.to_string()) {
             continue;
         }
@@ -178,7 +185,10 @@ fn get_temp(temp_flags: &str) -> Result<Option<String>> {
             if let Ok(temp_str) = std::fs::read_to_string(&temp_path) {
                 if let Ok(temp) = temp_str.trim().parse::<f64>() {
                     let zone_type = zone_type.trim().replace("-thermal", "");
-                    result.push_str(&format!("{}:{:.1}℃   ", zone_type, temp / 1000.0));
+                    let spaced_zone_type = zone_type.chars().map(|c| c.to_string()).collect::<Vec<_>>().join(" ");
+                    let temp_char= (temp / 1000.0).round().to_string();
+                    let spaced_temp = temp_char.chars().map(|c| c.to_string()).collect::<Vec<_>>().join(" ");
+                    result.push_str(&format!("{} : {}", spaced_zone_type, spaced_temp));
                 }
             }
         }
