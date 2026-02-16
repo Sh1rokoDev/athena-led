@@ -1,8 +1,8 @@
 # Athena LED 控制器
 
-[原项目](https://github.com/haipengno1/athena-led) 的分支，用于在 OpenWrt 设备上控制 LED 点阵显示屏，优化了显示的可读性。
+[简体中文](README_zh.md) | [English](README.md)
 
-[English](README.md) | 简体中文
+[原项目](https://github.com/haipengno1/athena-led) 的分支，用于在 OpenWrt 设备上控制 LED 点阵显示屏。
 
 ## 功能特性
 
@@ -13,53 +13,80 @@
 - 多种显示模式
 - HTTP 状态监控
 
-## 构建说明
+## 构建说明 (ArchLinux)
 
-1. 确保已安装 Rust 和 Cargo
-2. 针对 OpenWrt（通常为 ARM 架构）设置交叉编译环境
-3. 构建项目：
-
+1. 安装 Rust 和 Cargo ([ArchWiki](https://wiki.archlinux.org/title/Rust))
    ```bash
-   cargo build --release
+   sudo pacman -S rustup
+   rustup toolchain install stable
+   rustup default stable
+
+   # 验证 rust 和 cargo
+   rustc --version
+   cargo --version
    ```
 
-4. 编译后的二进制文件位于 `target/release/athena-led`
+2. 针对 OpenWrt 设置交叉编译环境
 
-## 交叉编译
+   **选项 2.1: 使用传统链接器：**
 
-本项目支持使用 Docker/Podman 进行 OpenWrt 设备的交叉编译。目标架构为 `aarch64-unknown-linux-musl`。
+   ```bash
+   # 安装 aarch64-linux-musl 工具链
+   yay -S aarch64-linux-musl
 
-### 环境要求
+   # 设置交叉编译环境变量
+   mkdir -p ~/.cargo
+   echo "[target.aarch64-unknown-linux-musl]" > ~/.cargo/config.toml
+   echo 'linker = "aarch64-linux-musl-gcc"' >> ~/.cargo/config.toml
 
-- 安装 Docker 或 Podman
-- 基本了解容器操作
+   # 添加 rustup 目标
+   rustup target add aarch64-unknown-linux-musl
+   rustup target add x86_64-unknown-linux-gnu
+   ```
 
-### 构建步骤
+   **选项 2.2: 使用 zig 进行交叉编译：**
+   ```bash
+   # 安装 zig 和工具链
+   yay -S zig aarch64-linux-musl
+   cargo install cargo-zigbuild
 
-项目包含了一个处理整个交叉编译过程的构建脚本：
+   # 添加 rustup 目标
+   rustup target add aarch64-unknown-linux-musl
+   rustup target add x86_64-unknown-linux-gnu
+   ```
+3. 构建项目：
 
-```bash
-./scripts/aarch64-unknown-linux-musl-build.sh
-```
+   **使用 cargo build：**
+   ```bash
+   # 为 aarch64-unknown-linux-musl 构建
+   cargo build --release --target aarch64-unknown-linux-musl
+   # 为 x86_64-unknown-linux-gnu 构建
+   cargo build --release --target x86_64-unknown-linux-gnu
+   ```
 
-该脚本会：
+   **使用 cargo zigbuild：**
+   ```bash
+   # 为 aarch64-unknown-linux-musl 构建
+   cargo zigbuild --release --target aarch64-unknown-linux-musl
+   # 为 x86_64-unknown-linux-gnu 构建
+   cargo zigbuild --release --target x86_64-unknown-linux-gnu
+   ```
 
-1. 创建必要的输出目录
-2. 构建包含所有必需依赖的容器镜像
-3. 为 aarch64-unknown-linux-musl 目标编译项目
-4. 提取编译好的二进制文件
+   **使用 Makefile：**
+   ```bash
+   # 编译所有目标
+   make all
+   # 仅为 aarch64-unknown-linux-musl 编译
+   make build-arm
+   # 仅为 x86_64-unknown-linux-gnu 编译
+   make build-x64
+   # 清理构建产物
+   make clean
+   # 检查构建目标
+   make check
+   ```
 
-最终的二进制文件将位于 `output/aarch64-unknown-linux-musl/athena-led`。
-
-### 技术细节
-
-- 目标架构：`aarch64-unknown-linux-musl`
-- 运行时库：musl（更好地兼容 OpenWrt）
-- 静态链接：所有依赖都静态链接
-- 二进制大小：约 2.2M（经过大小优化）
-- 工具链：
-  - 交叉编译器：gcc-aarch64-linux-gnu
-  - 环境变量由构建脚本自动设置
+4. 编译后的二进制文件位于 `dist/` 目录下
 
 ## 安装说明
 

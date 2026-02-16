@@ -13,53 +13,81 @@ A fork of [athena-led](https://github.com/haipengno1/athena-led) for controlling
 - Multiple display modes
 - HTTP status monitoring
 
-## Building
+## Building (ArchLinux)
 
-1. Make sure you have Rust and Cargo installed
-2. For cross-compilation to OpenWrt (typically ARM architecture), set up your cross-compilation environment
-3. Build the project:
-
+1. Install Rust and Cargo ([ArchWiki](https://wiki.archlinux.org/title/Rust))
    ```bash
-   cargo build --release
+   sudo pacman -S rustup
+   rustup toolchain install stable
+   rustup default stable
+
+   # verify rust and cargo
+   rustc --version
+   cargo --version
    ```
 
-4. The compiled binary will be in `target/release/athena-led`
+2. Set up cross-compilation environment for OpenWrt
 
-## Cross Compilation
+   **Option 2.1: Using traditional linker:**
 
-This project supports cross-compilation for OpenWrt devices using Docker/Podman. The target architecture is `aarch64-unknown-linux-musl`.
+   ```bash
+   # install toolchain for aarch64-linux-musl
+   yay -S aarch64-linux-musl
 
-### Prerequisites
+   # set environment variables for cross-compilation
+   mkdir -p ~/.cargo
+   echo "[target.aarch64-unknown-linux-musl]" > ~/.cargo/config.toml
+   echo 'linker = "aarch64-linux-musl-gcc"' >> ~/.cargo/config.toml
 
-- Docker or Podman installed
-- Basic understanding of container operations
+   # add rustup targets
+   rustup target add aarch64-unknown-linux-musl
+   rustup target add x86_64-unknown-linux-gnu
+   ```
 
-### Build Steps
+   **Option 2.2: Using zig for cross-compilation:**
+   ```bash
+   # install zig and toolchain
+   yay -S zig aarch64-linux-musl
+   cargo install cargo-zigbuild
 
-The project includes a build script that handles the entire cross-compilation process:
+   # add rustup targets
+   rustup target add aarch64-unknown-linux-musl
+   rustup target add x86_64-unknown-linux-gnu
+   ```
 
-```bash
-./scripts/aarch64-unknown-linux-musl-build.sh
-```
+3. Build the project:
 
-The script will:
+   **Using cargo build:**
+   ```bash
+   # build for aarch64-unknown-linux-musl
+   cargo build --release --target aarch64-unknown-linux-musl
+   # build for x86_64-unknown-linux-gnu
+   cargo build --release --target x86_64-unknown-linux-gnu
+   ```
 
-1. Create necessary output directories
-2. Build the container image with all required dependencies
-3. Compile the project for aarch64-unknown-linux-musl target
-4. Extract the compiled binary
+   **Using cargo zigbuild:**
+   ```bash
+   # build for aarch64-unknown-linux-musl
+   cargo zigbuild --release --target aarch64-unknown-linux-musl
+   # build for x86_64-unknown-linux-gnu
+   cargo zigbuild --release --target x86_64-unknown-linux-gnu
+   ```
 
-The final binary will be available at `output/aarch64-unknown-linux-musl/athena-led`.
+   **Using Makefile:**
+   ```bash
+   # build all targets
+   make all
+   # build for aarch64-unknown-linux-musl only
+   make build-arm
+   # build for x86_64-unknown-linux-gnu only
+   make build-x64
+   # clean build artifacts
+   make clean
+   # check build targets
+   make check
+   ```
 
-### Technical Details
-
-- Target: `aarch64-unknown-linux-musl`
-- Libc: musl (for better compatibility with OpenWrt)
-- Static linking: All dependencies are statically linked
-- Binary size: ~2.2M (optimized for size)
-- Toolchain:
-  - Cross compiler: gcc-aarch64-linux-gnu
-  - Environment variables are automatically set by the build script
+4. Compiled binaries will be in the `dist/` directory
 
 ## Installation
 
