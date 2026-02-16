@@ -4,7 +4,7 @@
 *.pdb
 
 # Project output
-/output/
+/dist/
 
 # Development
 .cargo/
@@ -24,6 +24,3 @@ cross/
 ._*
 .Spotlight-V100
 .Trashes
-
-# Local test scripts
-scripts/test_workflow_in_container.sh
