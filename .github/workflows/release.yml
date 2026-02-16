@@ -4,149 +4,168 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (leave empty to use Makefile version)'
+        required: false
+        type: string
 
-env:
-  CARGO_TERM_COLOR: always
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
+  cleanup:
+    name: Cleanup Old Release
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Delete existing release if exists
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION=$(grep '^VERSION' Makefile | awk '{print $3}')
+          fi
+          gh release delete v$VERSION --yes || true
+          sleep 2
+
   build:
     name: Build Release
     runs-on: ubuntu-latest
-    container:
-      image: rust:slim
+    needs: [cleanup]
+    if: |
+      always() &&
+      (needs.cleanup.result == 'success' || needs.cleanup.result == 'skipped')
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            name: x86_64-gnu
+          - target: aarch64-unknown-linux-musl
+            name: aarch64-musl
     
     steps:
-      - name: Install Git and dependencies
-        run: |
-          apt-get update && apt-get install -y \
-          git \
-          gcc-aarch64-linux-gnu \
-          g++-aarch64-linux-gnu \
-          musl-tools \
-          pkg-config \
-          gettext-base \
-          --no-install-recommends
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Install Zig
+        uses: goto-bus-stop/setup-zig@v2
         with:
-          fetch-depth: 0
-          persist-credentials: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+          version: 0.11.0
 
-      - name: Setup git
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cargo-zigbuild
         run: |
-          git config --global --add safe.directory /__w/athena-led/athena-led
-          git fetch --tags -f
+          cargo install cargo-zigbuild
 
-      - name: Add target
-        run: rustup target add aarch64-unknown-linux-musl
-
-      - name: Set environment variables
+      - name: Extract version
+        id: version
         run: |
-          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-          echo "CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
-          echo "CXX_aarch64_unknown_linux_musl=aarch64-linux-gnu-g++" >> $GITHUB_ENV
-          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-          echo "RUST_VERSION=$(rustc --version)" >> $GITHUB_ENV
-          echo "BUILD_DATE=$(date -u +'%Y-%m-%d')" >> $GITHUB_ENV
-
-      - name: Generate changelog
-        id: changelog
-        working-directory: ${{ github.workspace }}
-        run: |
-          # Function to get commits by type
-          get_commits_by_type() {
-            local type=$1
-            local range=$2
-            git log --pretty=format:"* %s" --grep="^$type:" "$range" | \
-            grep -vE "(workflow|ci:|test:|chore:|release|configuration|checkout|action|git)" || true | \
-            sed "s/^* $type: /* /"
-          }
-          
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          
-          # Get commit range
-          if [ -z "$PREV_TAG" ]; then
-            RANGE="$GITHUB_SHA"
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
           else
-            RANGE="$PREV_TAG..$GITHUB_SHA"
+            VERSION=$(grep '^VERSION' Makefile | awk '{print $3}')
           fi
-          
-          # Generate categorized changes and save to temporary files
-          get_commits_by_type "feat" "$RANGE" > feat_changes.txt
-          get_commits_by_type "fix" "$RANGE" > fix_changes.txt
-          get_commits_by_type "docs" "$RANGE" > doc_changes.txt
-          get_commits_by_type "perf" "$RANGE" > perf_changes.txt
-          
-          # Handle other changes
-          git log --pretty=format:"* %s" "$RANGE" | \
-            (grep -vE "^\* (feat|fix|docs|perf|test|ci|chore):" || true) | \
-            (grep -vE "(workflow|configuration|setup|Initial commit|release|changelog|template|checkout|action|git)" || true) > other_changes.txt
-          
-          # Read files and set outputs
-          echo "feat_changes=$(cat feat_changes.txt)" >> $GITHUB_OUTPUT
-          echo "fix_changes=$(cat fix_changes.txt)" >> $GITHUB_OUTPUT
-          echo "doc_changes=$(cat doc_changes.txt)" >> $GITHUB_OUTPUT
-          echo "perf_changes=$(cat perf_changes.txt)" >> $GITHUB_OUTPUT
-          echo "other_changes=$(cat other_changes.txt)" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
 
-      - name: Build
+      - name: Build for ${{ matrix.name }}
         run: |
-          cargo build --target aarch64-unknown-linux-musl --release
-          mkdir -p release
-          cp target/aarch64-unknown-linux-musl/release/athena-led release/
-          cd release && tar czf athena-led-aarch64-musl-v${VERSION}.tar.gz athena-led
-          echo "SHA256SUM=$(sha256sum athena-led-aarch64-musl-v${VERSION}.tar.gz)" >> $GITHUB_ENV
+          mkdir -p dist
+          cargo zigbuild --release --target ${{ matrix.target }} || cargo build --release --target ${{ matrix.target }}
+          cp target/${{ matrix.target }}/release/athena-led dist/athena-led-${{ matrix.name }}-${{ steps.version.outputs.version }}
+          
+      - name: Create package
+        run: |
+          cd dist
+          tar -czf athena-led-${{ matrix.name }}-${{ steps.version.outputs.version }}.tar.gz athena-led-${{ matrix.name }}-${{ steps.version.outputs.version }}
+          sha256sum athena-led-${{ matrix.name }}-${{ steps.version.outputs.version }}.tar.gz > athena-led-${{ matrix.name }}-${{ steps.version.outputs.version }}.tar.gz.sha256
 
-      - name: Generate release notes
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: athena-led-${{ matrix.name }}-${{ steps.version.outputs.version }}
+          path: dist/*
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: |
+      success() &&
+      needs.build.result == 'success'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
         run: |
-          {
-            echo "# Athena LED ${{ github.ref_name }}"
-            echo
-            echo "## Changes"
-            
-            if [ -n "${{ steps.changelog.outputs.feat_changes }}" ]; then
-              echo "### New Features"
-              echo "${{ steps.changelog.outputs.feat_changes }}"
-              echo
-            fi
-            
-            if [ -n "${{ steps.changelog.outputs.fix_changes }}" ]; then
-              echo "### Bug Fixes"
-              echo "${{ steps.changelog.outputs.fix_changes }}"
-              echo
-            fi
-            
-            if [ -n "${{ steps.changelog.outputs.doc_changes }}" ]; then
-              echo "### Documentation"
-              echo "${{ steps.changelog.outputs.doc_changes }}"
-              echo
-            fi
-            
-            if [ -n "${{ steps.changelog.outputs.perf_changes }}" ]; then
-              echo "### Performance Improvements"
-              echo "${{ steps.changelog.outputs.perf_changes }}"
-              echo
-            fi
-            
-            if [ -n "${{ steps.changelog.outputs.other_changes }}" ]; then
-              echo "### Other Changes"
-              echo "${{ steps.changelog.outputs.other_changes }}"
-              echo
-            fi
-            
-            echo "## Checksums"
-            echo "\`\`\`"
-            echo "$SHA256SUM"
-            echo "\`\`\`"
-          } > release/RELEASE_NOTES.md
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+            TAG_NAME="v$VERSION"
+          else
+            VERSION=$(grep '^VERSION' Makefile | awk '{print $3}')
+            TAG_NAME="v$VERSION"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Display artifacts
+        run: |
+          ls -lh artifacts/
+
+      - name: Create or update tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f ${{ steps.version.outputs.tag_name }}
+          git push -f origin ${{ steps.version.outputs.tag_name }}
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: release/athena-led-aarch64-musl-v${{ env.VERSION }}.tar.gz
-          body_path: release/RELEASE_NOTES.md
+          tag_name: ${{ steps.version.outputs.tag_name }}
+          name: Release ${{ steps.version.outputs.version }}
           draft: false
           prerelease: false
+          generate_release_notes: true
+          files: artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
