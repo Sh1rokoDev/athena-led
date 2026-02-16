@@ -1,4 +1,5 @@
 BINARY_NAME = athena-led
+VERSION = 0.8.0
 OUTPUT_DIR = ./dist
 CARGO_FLAGS = --release
 
@@ -14,7 +15,12 @@ define do_build
 	mkdir -p $(OUTPUT_DIR)
 	cargo zigbuild $(CARGO_FLAGS) --target $(1) || \
 	(echo "⚠️ <cargo zigbuild> failed, trying <cargo build>" && cargo build $(CARGO_FLAGS) --target $(1))
-	cp target/$(1)/release/$(BINARY_NAME) $(OUTPUT_DIR)/$(BINARY_NAME)-$(2)
+	cp target/$(1)/release/$(BINARY_NAME) $(OUTPUT_DIR)/$(BINARY_NAME)-$(2)-$(VERSION)
+	@echo "📦 Packaging $(2)..."
+	cd $(OUTPUT_DIR) && tar -czf $(BINARY_NAME)-$(2)-$(VERSION).tar.gz $(BINARY_NAME)-$(2)-$(VERSION)
+	cd $(OUTPUT_DIR) && sha256sum $(BINARY_NAME)-$(2)-$(VERSION).tar.gz > $(BINARY_NAME)-$(2)-$(VERSION).tar.gz.sha256
+	@echo "✅ Package: $(OUTPUT_DIR)/$(BINARY_NAME)-$(2)-$(VERSION).tar.gz"
+	@echo "✅ SHA256: $(OUTPUT_DIR)/$(BINARY_NAME)-$(2)-$(VERSION).tar.gz.sha256"
 endef
 
 build-arm:
@@ -25,7 +31,6 @@ build-x64:
 
 check:
 	@echo "📋 Testing generated files:"
-	@ls -lh $(OUTPUT_DIR)
 	@file $(OUTPUT_DIR)/* 2>/dev/null || true
 
 clean:
