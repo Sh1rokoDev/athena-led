@@ -1,120 +1,119 @@
-# Athena LED
+# Athena LED 控制器
 
-English | [简体中文](README_zh.md)
+[简体中文](README_zh.md) | [English](README.md)
 
-A fork of [athena-led](https://github.com/haipengno1/athena-led) for controlling LED matrix displays on OpenWrt devices.
+[原项目](https://github.com/haipengno1/athena-led) 的分支，用于在 OpenWrt 设备上控制 LED 点阵显示屏。
 
-## Features
+## 功能特性
 
-- Display current time and date
-- Show system temperature
-- Custom text display
-- Adjustable brightness levels
-- Multiple display modes
-- HTTP status monitoring
+- 显示当前时间和日期
+- 显示系统温度
+- 自定义文本显示
+- 可调节亮度级别
+- 多种显示模式
+- HTTP 状态监控
 
-## Building (ArchLinux)
+## 构建说明
 
-1. Install Rust and Cargo ([ArchWiki](https://wiki.archlinux.org/title/Rust))
+1. 安装 Docker
+
    ```bash
-   sudo pacman -S rustup
+   export DOWNLOAD_URL="https://mirrors.tuna.tsinghua.edu.cn/docker-ce"
+   curl -fsSL https://raw.githubusercontent.com/docker/docker-install/master/install.sh | sh
+   sudo usermod -aG docker $USER
+
+   # 验证 Docker 安装
+   docker --version
+   ```
+
+2. 安装与配置 Rustup
+
+   ```bash
+   sudo apt update
+   sudo apt install rustup
    rustup toolchain install stable
    rustup default stable
 
-   # verify rust and cargo
+   # 验证 rust 和 cargo
    rustc --version
    cargo --version
-   ```
 
-2. Set up cross-compilation environment for OpenWrt
-
-   **Option 2.1: Using traditional linker:**
-
-   ```bash
-   # install toolchain for aarch64-linux-musl
-   yay -S aarch64-linux-musl
-
-   # set environment variables for cross-compilation
-   mkdir -p ~/.cargo
-   echo "[target.aarch64-unknown-linux-musl]" > ~/.cargo/config.toml
-   echo 'linker = "aarch64-linux-musl-gcc"' >> ~/.cargo/config.toml
-
-   # add rustup targets
+   # 配置 Rustup 目标
    rustup target add aarch64-unknown-linux-musl
-   rustup target add x86_64-unknown-linux-gnu
+   rustup target add x86_64-unknown-linux-musl
    ```
 
-   **Option 2.2: Using zig for cross-compilation:**
+3. 安装 Cross
+
    ```bash
-   # install zig and toolchain
-   yay -S zig aarch64-linux-musl
-   cargo install cargo-zigbuild
-
-   # add rustup targets
-   rustup target add aarch64-unknown-linux-musl
-   rustup target add x86_64-unknown-linux-gnu
+   cargo install cross --git https://github.com/cross-rs/cross
    ```
 
-3. Build the project:
+   将 Cross 添加到 PATH 中：
 
-   **Using cargo build:**
    ```bash
-   # build for aarch64-unknown-linux-musl
-   cargo build --release --target aarch64-unknown-linux-musl
-   # build for x86_64-unknown-linux-gnu
-   cargo build --release --target x86_64-unknown-linux-gnu
+   # BASH SHELL
+   echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
    ```
 
-   **Using cargo zigbuild:**
    ```bash
-   # build for aarch64-unknown-linux-musl
-   cargo zigbuild --release --target aarch64-unknown-linux-musl
-   # build for x86_64-unknown-linux-gnu
-   cargo zigbuild --release --target x86_64-unknown-linux-gnu
+   # ZSH SHELL
+   echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
    ```
 
-   **Using Makefile:**
    ```bash
-   # build all targets
-   make all
-   # build for aarch64-unknown-linux-musl only
-   make build-arm
-   # build for x86_64-unknown-linux-gnu only
-   make build-x64
-   # clean build artifacts
-   make clean
-   # check build targets
-   make check
+   # FISH SHELL
+   fish_add_path ~/.cargo/bin && source ~/.config/fish/config.fish
    ```
 
-4. Compiled binaries will be in the `dist/` directory
+4. 构建项目：
 
-## Installation
+   1. 使用 Cross 直接构建：
 
-Copy the compiled binary `athena-led` to your OpenWrt device's `/usr/sbin/` directory.
+      ```bash
+      # 构建 aarch64-unknown-linux-musl 目标
+      cross build --release --target aarch64-unknown-linux-musl
+      # 构建 x86_64-unknown-linux-musl 目标
+      cross build --release --target x86_64-unknown-linux-musl
+      ```
 
-## Usage
+   2. 使用 Makefile 构建：
+
+      ```bash
+      # 构建所有目标
+      make all
+      # 构建特定目标
+      make arm # 构建 aarch64-unknown-linux-musl
+      make x64 # 构建 x86_64-unknown-linux-musl
+      ```
+
+      Makefile方式编译后的二进制文件位于 `dist/` 目录下
+
+## 安装说明
+
+将编译好的二进制文件重命名为 `athena-led` 复制到 OpenWrt 设备的 `/usr/sbin/` 目录下。
+
+## 使用方法
 
 ```bash
-athena-led [OPTIONS]
+athena-led [选项]
 
-Options:
-    --status <STATUS>          Set status string [default: ""]
-    --seconds <SECONDS>        Update interval in seconds [default: 5]
-    --light-level <LEVEL>      Set brightness level (0-7) [default: 5]
-    --option <OPTION>          Display mode (e.g., "date", "timeBlink") [default: "date timeBlink"]
-    --value <VALUE>           Custom display characters [default: "abcdefghijklmnopqrstuvwxyz0123456789+-*/=.:：℃"]
-    --url <URL>               URL for status monitoring [default: "https://www.baidu.com/"]
-    --temp-flag <FLAG>        Temperature sensor flag (0:nss-top, 1:nss, 2:wcss-phya0, 3:wcss-phya1, 4:cpu, 5:lpass, 6:ddrss) [default: "4"]
+选项说明：
+    --status <状态>            设置状态字符串 [默认: ""]
+    --seconds <秒数>           更新间隔（秒） [默认: 5]
+    --light-level <亮度>       设置亮度级别（0-7） [默认: 5]
+    --option <选项>            显示模式（如 "date"、"timeBlink"） [默认: "date timeBlink"]
+    --value <值>              自定义显示字符 [默认: "abcdefghijklmnopqrstuvwxyz0123456789+-*/=.:：℃"]
+    --url <URL>               状态监控的 URL [默认: "https://www.baidu.com/"]
+    --temp-flag <标志>         温度传感器标志（0:nss-top, 1:nss, 2:wcss-phya0, 3:wcss-phya1, 4:cpu, 5:lpass, 6:ddrss） [默认: "4"]
 ```
 
-## FAQ
+## 常见问题
+1. **时间显示问题**  
+   如果显示的时间与系统时区不匹配，请确保系统已安装所需的时区数据包：
+   - OpenWrt 系统：安装 `zoneinfo-core` 和对应地区的包（如 `zoneinfo-asia`）
+   - 其他 Linux 发行版：安装 `tzdata` 包
 
-1. **Time Display Issues**  
-   If the displayed time doesn't match your system timezone, please ensure the required timezone data packages are installed on your system:
-   - For OpenWrt: Install `zoneinfo-core` and your region's package (e.g., `zoneinfo-asia`)
-   - For other Linux distributions: Install `tzdata` package
+## 开源许可
 
-## License
-
-This project is licensed under the Apache License, Version 2.0 - see the [LICENSE](LICENSE) file for details.
+本项目采用 Apache License 2.0 许可证 - 详见 [LICENSE](LICENSE) 文件。

@@ -4,35 +4,53 @@ OUTPUT_DIR = ./dist
 CARGO_FLAGS = --release
 
 ARM_TARGET = aarch64-unknown-linux-musl
-X64_TARGET = x86_64-unknown-linux-gnu
+X64_TARGET = x86_64-unknown-linux-musl
 
-.PHONY: all build-arm build-x64 clean check
+.PHONY: all arm x64 check clean dirclean
 
-all: build-arm build-x64 check
+all: arm x64 check
 
 define do_build
+	@echo "============================================="
 	@echo "🚀 Building $(1)..."
-	mkdir -p $(OUTPUT_DIR)
-	cargo zigbuild $(CARGO_FLAGS) --target $(1) || \
-	(echo "⚠️ <cargo zigbuild> failed, trying <cargo build>" && cargo build $(CARGO_FLAGS) --target $(1))
-	cp target/$(1)/release/$(BINARY_NAME) $(OUTPUT_DIR)/$(BINARY_NAME)-$(2)-$(VERSION)
-	@echo "📦 Packaging $(2)..."
-	cd $(OUTPUT_DIR) && tar -czf $(BINARY_NAME)-$(2)-$(VERSION).tar.gz $(BINARY_NAME)-$(2)-$(VERSION)
-	cd $(OUTPUT_DIR) && sha256sum $(BINARY_NAME)-$(2)-$(VERSION).tar.gz > $(BINARY_NAME)-$(2)-$(VERSION).tar.gz.sha256
-	@echo "✅ Package: $(OUTPUT_DIR)/$(BINARY_NAME)-$(2)-$(VERSION).tar.gz"
-	@echo "✅ SHA256: $(OUTPUT_DIR)/$(BINARY_NAME)-$(2)-$(VERSION).tar.gz.sha256"
+	@echo "============================================="
+
+	@cross build --target $(1) $(CARGO_FLAGS)
+
+	@echo "============================================="
+	@echo "📦 Packaging $(1)..."
+	@echo "============================================="
+	
+	@mkdir -p $(OUTPUT_DIR)
+
+	@SOURCE_FILE="target/$(1)/release/$(BINARY_NAME)"; \
+	SHORT_TARGET=$$(echo $(1) | cut -d'-' -f1,4); \
+	TARGET_FILE_NAME="$(BINARY_NAME)-$${SHORT_TARGET}-$(VERSION)"; \
+	TARGET_FILE_PATH="$(OUTPUT_DIR)/$${TARGET_FILE_NAME}"; \
+	cp $$SOURCE_FILE $$TARGET_FILE_PATH; \
+	cd $(OUTPUT_DIR); \
+	tar -czf $${TARGET_FILE_NAME}.tar.gz $${TARGET_FILE_NAME}; \
+	sha256sum $${TARGET_FILE_NAME}.tar.gz > $${TARGET_FILE_NAME}.tar.gz.sha256; \
+	cd ..;\
+	printf "    \033[32mPackage:\033[0m $(OUTPUT_DIR)/$${TARGET_FILE_NAME}.tar.gz\n"; \
+	printf "    \033[32mSHA256:\033[0m %s\n" "$$(cut -d' ' -f1 < $(OUTPUT_DIR)/$${TARGET_FILE_NAME}.tar.gz.sha256)"
 endef
 
-build-arm:
-	$(call do_build,$(ARM_TARGET),aarch64-musl)
+arm:
+	$(call do_build,$(ARM_TARGET))
 
-build-x64:
-	$(call do_build,$(X64_TARGET),x86_64-gnu)
+x64:
+	$(call do_build,$(X64_TARGET))
 
 check:
+	@echo "============================================="
 	@echo "📋 Testing generated files:"
-	@file $(OUTPUT_DIR)/* 2>/dev/null || true
+	@echo "============================================="
+	@file $(OUTPUT_DIR)/* 2>/dev/null | grep -v '\.tar\.gz' | grep -v '\.sha256' || true
 
 clean:
-	cargo clean
-	rm -rf $(OUTPUT_DIR)
+	@cargo clean
+
+dirclean:
+	@cargo clean
+	@rm -rfv $(OUTPUT_DIR)
