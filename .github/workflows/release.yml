@@ -29,12 +29,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-          elif [[ -n "${{ inputs.version }}" ]]; then
+          if [[ -n "${{ inputs.version }}" ]]; then
             VERSION="${{ inputs.version }}"
           else
-            VERSION=$(grep '^VERSION' Makefile | awk '{print $3}')
+            VERSION=$(grep '^VERSION' Makefile | awk '{print $2}')
           fi
           gh release delete v$VERSION --yes || true
           sleep 2
@@ -68,12 +66,10 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-          elif [[ -n "${{ inputs.version }}" ]]; then
+          if [[ -n "${{ inputs.version }}" ]]; then
             VERSION="${{ inputs.version }}"
           else
-            VERSION=$(grep '^VERSION' Makefile | awk '{print $3}')
+            VERSION=$(grep '^VERSION' Makefile | awk '{print $2}')
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
@@ -116,16 +112,12 @@ jobs:
       - name: Extract version
         id: version
         run: |
-          if [[ $GITHUB_REF == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-            TAG_NAME="${GITHUB_REF#refs/tags/}"
-          elif [[ -n "${{ inputs.version }}" ]]; then
+          if [[ -n "${{ inputs.version }}" ]]; then
             VERSION="${{ inputs.version }}"
-            TAG_NAME="v$VERSION"
           else
-            VERSION=$(grep '^VERSION' Makefile | awk '{print $3}')
-            TAG_NAME="v$VERSION"
+            VERSION=$(grep '^VERSION' Makefile | awk '{print $2}')
           fi
+          TAG_NAME="v$VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
 
@@ -140,7 +132,6 @@ jobs:
           ls -lh artifacts/
 
       - name: Create or update tag
-        if: github.event_name == 'workflow_dispatch'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
