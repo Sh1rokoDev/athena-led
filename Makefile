@@ -1,10 +1,14 @@
-BINARY_NAME = athena-led
-VERSION = 0.8.0
-OUTPUT_DIR = ./dist
-CARGO_FLAGS = --release
+BINARY_NAME:= athena-led
+VERSION:= 0.9.0
+OUTPUT_DIR:= ./dist
+CARGO_FLAGS:= --release
 
-ARM_TARGET = aarch64-unknown-linux-musl
-X64_TARGET = x86_64-unknown-linux-musl
+ROOT_DIR = $(shell pwd)
+
+ARM_TARGET:= aarch64-unknown-linux-musl
+ARM_TARGET_SHORT:= aarch64-musl
+X64_TARGET:= x86_64-unknown-linux-musl
+X64_TARGET_SHORT:= x86_64-musl
 
 .PHONY: all arm x64 check clean dirclean
 
@@ -23,24 +27,26 @@ define do_build
 	
 	@mkdir -p $(OUTPUT_DIR)
 
-	@SOURCE_FILE="target/$(1)/release/$(BINARY_NAME)"; \
-	SHORT_TARGET=$$(echo $(1) | cut -d'-' -f1,4); \
-	TARGET_FILE_NAME="$(BINARY_NAME)-$${SHORT_TARGET}-$(VERSION)"; \
-	TARGET_FILE_PATH="$(OUTPUT_DIR)/$${TARGET_FILE_NAME}"; \
-	cp $$SOURCE_FILE $$TARGET_FILE_PATH; \
-	cd $(OUTPUT_DIR); \
-	tar -czf $${TARGET_FILE_NAME}.tar.gz $${TARGET_FILE_NAME}; \
-	sha256sum $${TARGET_FILE_NAME}.tar.gz > $${TARGET_FILE_NAME}.tar.gz.sha256; \
-	cd ..;\
-	printf "    \033[32mPackage:\033[0m $(OUTPUT_DIR)/$${TARGET_FILE_NAME}.tar.gz\n"; \
-	printf "    \033[32mSHA256:\033[0m %s\n" "$$(cut -d' ' -f1 < $(OUTPUT_DIR)/$${TARGET_FILE_NAME}.tar.gz.sha256)"
+	@TARGET_DIR="target/$(1)/release"; \
+	TARGET_NAME="$(BINARY_NAME)-$(2)-v$(VERSION)"; \
+	cd "$$TARGET_DIR" && \
+	cp $(BINARY_NAME) "$$TARGET_NAME" && \
+	tar -czf "$$TARGET_NAME.tar.gz" "$(BINARY_NAME)" && \
+	sha256sum "$$TARGET_NAME.tar.gz" > "$$TARGET_NAME.tar.gz.sha256" && \
+	mv "$$TARGET_NAME" "$(ROOT_DIR)/$(OUTPUT_DIR)/" && \
+	mv "$$TARGET_NAME.tar.gz" "$(ROOT_DIR)/$(OUTPUT_DIR)/" && \
+	mv "$$TARGET_NAME.tar.gz.sha256" "$(ROOT_DIR)/$(OUTPUT_DIR)/"
+
+	@cd $(ROOT_DIR)
+	@printf "    \033[32mPackage:\033[0m $(OUTPUT_DIR)/$(BINARY_NAME)-$(2)-v$(VERSION).tar.gz\n"
+	@printf "    \033[32mSHA256:\033[0m %s\n" "$$(cut -d' ' -f1 < $(OUTPUT_DIR)/$(BINARY_NAME)-$(2)-v$(VERSION).tar.gz.sha256)"
 endef
 
 arm:
-	$(call do_build,$(ARM_TARGET))
+	$(call do_build,$(ARM_TARGET),$(ARM_TARGET_SHORT))
 
 x64:
-	$(call do_build,$(X64_TARGET))
+	$(call do_build,$(X64_TARGET),$(X64_TARGET_SHORT))
 
 check:
 	@echo "============================================="

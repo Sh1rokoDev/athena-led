@@ -85,11 +85,14 @@ jobs:
 
       - name: Create package
         run: |
-          cd target/${{ matrix.target }}/release
-          tar -czf athena-led-${{ matrix.name }}-v${{ steps.version.outputs.version }}.tar.gz athena-led
-          sha256sum athena-led-${{ matrix.name }}-v${{ steps.version.outputs.version }}.tar.gz > athena-led-${{ matrix.name }}-v${{ steps.version.outputs.version }}.tar.gz.sha256
-          mv athena-led-${{ matrix.name }}-v${{ steps.version.outputs.version }}.tar.gz "$GITHUB_WORKSPACE/dist/"
-          mv athena-led-${{ matrix.name }}-v${{ steps.version.outputs.version }}.tar.gz.sha256 "$GITHUB_WORKSPACE/dist/"
+          TARGET_DIR="target/${{ matrix.target }}/release"
+          TARGET_NAME="athena-led-${{ matrix.name }}-v${{ steps.version.outputs.version }}"
+          cd "$TARGET_DIR"
+          tar -czf "$TARGET_NAME.tar.gz" "athena-led"
+          sha256sum "$TARGET_NAME.tar.gz" > "$TARGET_NAME.tar.gz.sha256"
+          cp athena-led "$GITHUB_WORKSPACE/dist/${TARGET_NAME}"
+          mv "$TARGET_NAME.tar.gz" "$GITHUB_WORKSPACE/dist/"
+          mv "$TARGET_NAME.tar.gz.sha256" "$GITHUB_WORKSPACE/dist/"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
