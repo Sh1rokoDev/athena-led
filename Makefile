@@ -1,5 +1,5 @@
 BINARY_NAME:= athena-led
-VERSION:= 0.9.0
+VERSION:= 1.0.0
 OUTPUT_DIR:= ./dist
 CARGO_FLAGS:= --release
 

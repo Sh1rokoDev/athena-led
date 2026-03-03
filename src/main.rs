@@ -80,7 +80,7 @@ async fn main() -> Result<()> {
     let status_flag = args.status.split_whitespace()
         .fold(0u8, |acc, item| {
             acc | match item {
-                "time" => 1,
+                "clock" => 1,
                 "medal" => 2,
                 "upload" => 4,
                 "download" => 8,
